@@ -1,0 +1,14 @@
+namespace = "dota2uid-local"
+stratz_token = ""
+timeout_seconds = 10
+reply_mode = "image" # Set "text" for plain replies; errors always use text.
+illustration_path = "" # Optional local downloaded pack; relative to this config file.
+subscriptions_enabled = false
+subscription_interval_seconds = 300
+daily_report_hour = 9
+
+# Map verified Event.bot_id values to platform namespaces; unknown platforms fail closed.
+[platforms]
+onebot = "qq"
+qq = "qq"
+telegram = "telegram"
