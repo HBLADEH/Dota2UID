@@ -11,7 +11,7 @@ git clone https://github.com/HBLADEH/Dota2UID.git gsuid_core/plugins/Dota2UID
 .venv/Scripts/python.exe gsuid_core/plugins/Dota2UID/install_runtime.py --host-python .venv/Scripts/python.exe
 ```
 
-安装器从该仓库 GitHub Releases 取得与 release.json 匹配的三个 wheel，校验 SHA256，通过宿主 Python 的 pip 安装；Pillow/HTTPX 等第三方依赖从包索引取得。没有 pip 时先使用解释器自带 ensurepip。需要网络，不要求本地 Dota2Forge workspace、私有索引或自行构建 wheel。升级失败时按错误处理，不跳过版本检查强行加载。
+安装器从该仓库 GitHub Releases 取得与 release.json 匹配的三个 wheel，校验 SHA256，通过宿主 Python 的 pip 安装；Pillow/HTTPX 等第三方依赖从包索引取得。没有 pip 时先使用解释器自带 ensurepip。安装时保留其他宿主包对 Pillow 的有效约束，安装后运行 pip check，依赖冲突返回失败。需要网络，不要求本地 Dota2Forge workspace、私有索引或自行构建 wheel。失败时按错误处理，不跳过版本检查强行加载。
 
 随后正常冷启动 GsCore。首次创建 data/Dota2UID/config.toml，合法但空 Token 为 awaiting_config，不创建业务客户端或调度；非法字段仍失败。填写本机 stratz_token 与独立 namespace，Token 不发到聊天。完整配置项以仓库根 config.example.toml 为准；配置位置在宿主 data/Dota2UID，不能覆盖已存在配置。
 
@@ -20,6 +20,8 @@ git clone https://github.com/HBLADEH/Dota2UID.git gsuid_core/plugins/Dota2UID
 ## 宿主安装与升级限制
 
 当前 GsCore 87c06f1 的商店热重载会收集缺失依赖，但未在导入前执行安装。因此直接点击安装可能提示依赖缺失；按上面的停止宿主/公开运行包安装/冷启动步骤完成安装。运行库版本锁定，不接受静默混用旧包。
+
+0.1.0a3 将 Renderer 的 Pillow 范围设为 >=11.3,<13，以兼容该宿主 fastembed 的 <12 要求。0.1.0a2 的公开包要求 Pillow >=12.3，与该宿主冲突，不用于此安装流程；已安装 a2 时使用 a3 清单重装并确认 pip check 通过。
 
 更新前先停用并退出宿主，备份 data/Dota2UID 中的配置及绑定/订阅库，再更新分发目录并运行同一安装命令，最后冷启动。新版本下载地址与摘要随分发清单生成。不要在运行中的进程安装新库后只看版本元数据判断升级成功。
 

@@ -7,6 +7,7 @@ import json
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 
@@ -56,6 +57,48 @@ def public_requirements(root: Path) -> list[str]:
     return requirements
 
 
+def pillow_constraints(host_python: Path) -> list[str]:
+    """Preserve active host requirements, excluding the libraries being replaced."""
+    result = subprocess.run(
+        [
+            str(host_python),
+            "-I",
+            "-c",
+            """import importlib.metadata as metadata
+import json
+from pip._vendor.packaging.requirements import Requirement
+excluded = {"dota2forge-core", "dota2forge-renderer", "dota2uid"}
+constraints = set()
+for distribution in metadata.distributions():
+    name = distribution.metadata.get("Name", "").lower().replace("_", "-")
+    if name in excluded:
+        continue
+    for value in distribution.requires or ():
+        requirement = Requirement(value)
+        if requirement.name.lower() != "pillow":
+            continue
+        if requirement.marker and not requirement.marker.evaluate({"extra": ""}):
+            continue
+        if requirement.url:
+            raise ValueError("Host Pillow URL requirements need manual resolution")
+        if requirement.specifier:
+            constraints.add("pillow" + str(requirement.specifier))
+print(json.dumps(sorted(constraints)))
+""",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    constraints = json.loads(result.stdout)
+    if not isinstance(constraints, list) or any(
+        not isinstance(value, str) or not re.fullmatch(r"pillow[0-9A-Za-z.*<>=!~,+-]+", value)
+        for value in constraints
+    ):
+        raise ValueError("Invalid host Pillow constraints.")
+    return constraints
+
+
 def install(host_python: Path, requirements: list[str]) -> int:
     version = subprocess.run(
         [
@@ -82,21 +125,30 @@ def install(host_python: Path, requirements: list[str]) -> int:
         )
         if bootstrap.returncode:
             return bootstrap.returncode
-    return subprocess.run(
-        [
-            str(host_python),
-            "-I",
-            "-m",
-            "pip",
-            "install",
-            "--upgrade",
-            "--no-cache-dir",
-            "--disable-pip-version-check",
-            "--only-binary=:all:",
-            *requirements,
-        ],
-        check=False,
-    ).returncode
+    constraints = pillow_constraints(host_python)
+    with tempfile.TemporaryDirectory(prefix="dota2uid-runtime-") as temporary:
+        constraint_file = Path(temporary) / "host-pillow.txt"
+        constraint_file.write_text("\n".join(constraints) + "\n", encoding="utf-8")
+        result = subprocess.run(
+            [
+                str(host_python),
+                "-I",
+                "-m",
+                "pip",
+                "install",
+                "--upgrade",
+                "--no-cache-dir",
+                "--disable-pip-version-check",
+                "--only-binary=:all:",
+                "--constraint",
+                str(constraint_file),
+                *requirements,
+            ],
+            check=False,
+        ).returncode
+    if result:
+        return result
+    return subprocess.run([str(host_python), "-I", "-m", "pip", "check"], check=False).returncode
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -9,7 +9,7 @@
 
 [安装文档](INSTALL.md) · [截图清单](INSTALL.md) · [Dota2Forge](https://github.com/HBLADEH/Dota2Forge/blob/main/README.md) · [反馈问题](https://github.com/HBLADEH/Dota2Forge/issues)
 
-> 发行版本：`0.1.0a2` · [目标分发仓库](https://github.com/HBLADEH/Dota2UID)。由主仓同一源码生成。
+> 发行版本：`0.1.0a3` · [目标分发仓库](https://github.com/HBLADEH/Dota2UID)。由主仓同一源码生成。
 
 ## 丨安装提醒
 
