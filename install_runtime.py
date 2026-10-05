@@ -1,4 +1,4 @@
-"""Install the exact public runtime wheels while the GsCore host is stopped."""
+"""Install pinned Dota2Forge runtime wheels while the selected host is stopped."""
 
 from __future__ import annotations
 
@@ -14,12 +14,16 @@ from pathlib import Path
 def public_requirements(root: Path) -> list[str]:
     release = json.loads((root / "release.json").read_text(encoding="utf-8"))
     manifest = json.loads((root / "runtime-wheels.json").read_text(encoding="utf-8"))
-    names = {"dota2forge-core", "dota2forge-renderer", "dota2uid"}
+    plugins = {"Dota2UID": "dota2uid", "astrbot_plugin_dota2forge": "astrbot-plugin-dota2forge"}
+    plugin = release.get("plugin") if isinstance(release, dict) else None
+    if not isinstance(plugin, str) or plugin not in plugins:
+        raise ValueError("Unknown Dota2Forge plugin.")
+    adapter = plugins[plugin]
+    names = {"dota2forge-core", "dota2forge-renderer", adapter}
     if (
         not isinstance(release, dict)
         or type(release.get("schema_version")) is not int
         or release.get("schema_version") != 1
-        or release.get("plugin") != "Dota2UID"
         or not isinstance(release.get("versions"), dict)
         or set(release["versions"]) != names
         or not isinstance(manifest, dict)
@@ -28,16 +32,16 @@ def public_requirements(root: Path) -> list[str]:
         or not isinstance(manifest.get("wheels"), dict)
         or set(manifest["wheels"]) != names
     ):
-        raise ValueError("Invalid Dota2UID release or runtime manifest.")
+        raise ValueError("Invalid Dota2Forge release or runtime manifest.")
     repo = manifest.get("repository")
     if not isinstance(repo, str) or not re.fullmatch(
-        r"https://github\.com/[A-Za-z0-9_-]+/Dota2UID", repo
+        r"https://github\.com/[A-Za-z0-9_-]+/" + re.escape(plugin), repo
     ):
-        raise ValueError("Runtime wheels must come from the Dota2UID GitHub repository.")
+        raise ValueError("Runtime wheels must come from the matching plugin GitHub repository.")
     for version in release["versions"].values():
         if not isinstance(version, str) or not re.fullmatch(r"[0-9][0-9A-Za-z.!+-]{0,63}", version):
             raise ValueError("Invalid runtime version.")
-    tag = "v" + release["versions"]["dota2uid"]
+    tag = "v" + release["versions"][adapter]
     if manifest.get("release_tag") != tag:
         raise ValueError("Runtime release tag does not match the plugin.")
     requirements = []
@@ -67,7 +71,7 @@ def pillow_constraints(host_python: Path) -> list[str]:
             """import importlib.metadata as metadata
 import json
 from pip._vendor.packaging.requirements import Requirement
-excluded = {"dota2forge-core", "dota2forge-renderer", "dota2uid"}
+excluded = {"dota2forge-core", "dota2forge-renderer", "dota2uid", "astrbot-plugin-dota2forge"}
 constraints = set()
 for distribution in metadata.distributions():
     name = distribution.metadata.get("Name", "").lower().replace("_", "-")
@@ -112,7 +116,7 @@ def install(host_python: Path, requirements: list[str]) -> int:
         text=True,
     )
     if tuple(json.loads(version.stdout)) < (3, 12):
-        raise ValueError("The GsCore environment requires Python 3.12 or newer.")
+        raise ValueError("The host environment requires Python 3.12 or newer.")
     pip = subprocess.run(
         [str(host_python), "-I", "-m", "pip", "--version"],
         check=False,
@@ -165,7 +169,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1
     if result == 0:
-        print("Pinned public runtime installed. Cold-start GsCore to load the new libraries.")
+        print("Pinned public runtime installed. Cold-start the host to load the new libraries.")
     return result
 
 

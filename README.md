@@ -3,13 +3,13 @@
 </p>
 
 <h1 align="center">Dota2UID</h1>
-<h4 align="center">将 Dota 2 数据锻造成可读的战绩与图片战报</h4>
+<h4 align="center">在聊天里查刀塔战绩、比赛详情和英雄出装</h4>
 
 <p align="center">GsCore 扩展 · Dota2Forge 共享核心 · Python 3.12+</p>
 
 [安装文档](INSTALL.md) · [截图清单](INSTALL.md) · [Dota2Forge](https://github.com/HBLADEH/Dota2Forge/blob/main/README.md) · [反馈问题](https://github.com/HBLADEH/Dota2Forge/issues)
 
-> 发行版本：`0.1.0a3` · [目标分发仓库](https://github.com/HBLADEH/Dota2UID)。由主仓同一源码生成。
+> 发行版本：`0.1.0a4` · [目标分发仓库](https://github.com/HBLADEH/Dota2UID)。由主仓同一源码生成。
 
 ## 丨安装提醒
 
