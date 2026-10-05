@@ -1,0 +1,121 @@
+"""Install the exact public runtime wheels while the GsCore host is stopped."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+
+def public_requirements(root: Path) -> list[str]:
+    release = json.loads((root / "release.json").read_text(encoding="utf-8"))
+    manifest = json.loads((root / "runtime-wheels.json").read_text(encoding="utf-8"))
+    names = {"dota2forge-core", "dota2forge-renderer", "dota2uid"}
+    if (
+        not isinstance(release, dict)
+        or type(release.get("schema_version")) is not int
+        or release.get("schema_version") != 1
+        or release.get("plugin") != "Dota2UID"
+        or not isinstance(release.get("versions"), dict)
+        or set(release["versions"]) != names
+        or not isinstance(manifest, dict)
+        or type(manifest.get("schema_version")) is not int
+        or manifest.get("schema_version") != 1
+        or not isinstance(manifest.get("wheels"), dict)
+        or set(manifest["wheels"]) != names
+    ):
+        raise ValueError("Invalid Dota2UID release or runtime manifest.")
+    repo = manifest.get("repository")
+    if not isinstance(repo, str) or not re.fullmatch(
+        r"https://github\.com/[A-Za-z0-9_-]+/Dota2UID", repo
+    ):
+        raise ValueError("Runtime wheels must come from the Dota2UID GitHub repository.")
+    for version in release["versions"].values():
+        if not isinstance(version, str) or not re.fullmatch(r"[0-9][0-9A-Za-z.!+-]{0,63}", version):
+            raise ValueError("Invalid runtime version.")
+    tag = "v" + release["versions"]["dota2uid"]
+    if manifest.get("release_tag") != tag:
+        raise ValueError("Runtime release tag does not match the plugin.")
+    requirements = []
+    for name in sorted(names):
+        wheel = manifest["wheels"][name]
+        filename = f"{name.replace('-', '_')}-{release['versions'][name]}-py3-none-any.whl"
+        if (
+            not isinstance(wheel, dict)
+            or wheel.get("filename") != filename
+            or not isinstance(wheel.get("sha256"), str)
+            or not re.fullmatch(r"[0-9a-f]{64}", wheel["sha256"])
+        ):
+            raise ValueError("Invalid runtime wheel name or SHA256.")
+        extra = "" if name == "dota2forge-renderer" else "[stratz]"
+        url = f"{repo}/releases/download/{tag}/{filename}#sha256={wheel['sha256']}"
+        requirements.append(f"{name}{extra} @ {url}")
+    return requirements
+
+
+def install(host_python: Path, requirements: list[str]) -> int:
+    version = subprocess.run(
+        [
+            str(host_python),
+            "-I",
+            "-c",
+            "import json, sys; print(json.dumps(list(sys.version_info[:2])))",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    if tuple(json.loads(version.stdout)) < (3, 12):
+        raise ValueError("The GsCore environment requires Python 3.12 or newer.")
+    pip = subprocess.run(
+        [str(host_python), "-I", "-m", "pip", "--version"],
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    if pip.returncode:
+        bootstrap = subprocess.run(
+            [str(host_python), "-I", "-m", "ensurepip", "--upgrade"], check=False
+        )
+        if bootstrap.returncode:
+            return bootstrap.returncode
+    return subprocess.run(
+        [
+            str(host_python),
+            "-I",
+            "-m",
+            "pip",
+            "install",
+            "--upgrade",
+            "--no-cache-dir",
+            "--disable-pip-version-check",
+            "--only-binary=:all:",
+            *requirements,
+        ],
+        check=False,
+    ).returncode
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--host-python", required=True, type=Path)
+    args = parser.parse_args(argv)
+    try:
+        requirements = public_requirements(Path(__file__).resolve().parent)
+        result = install(args.host_python, requirements)
+    except (OSError, ValueError, KeyError, TypeError, subprocess.CalledProcessError) as error:
+        print(
+            f"Runtime installation failed ({type(error).__name__}). "
+            "Check manifests and host Python."
+        )
+        return 1
+    if result == 0:
+        print("Pinned public runtime installed. Cold-start GsCore to load the new libraries.")
+    return result
+
+
+if __name__ == "__main__":
+    sys.exit(main())
