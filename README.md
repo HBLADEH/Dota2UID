@@ -7,9 +7,9 @@
 
 <p align="center">GsCore 扩展 · Dota2Forge 共享核心 · Python 3.12+</p>
 
-[安装文档](INSTALL.md) · [截图清单](https://github.com/HBLADEH/Dota2Forge/blob/f585ed310d6dd444c9046fba9fb8313ffc90c193/docs/cookbook/plugin-showcase.md) · [Dota2Forge](https://github.com/HBLADEH/Dota2Forge/blob/f585ed310d6dd444c9046fba9fb8313ffc90c193/README.md) · [反馈问题](https://github.com/HBLADEH/Dota2Forge/issues)
+[安装文档](INSTALL.md) · [截图清单](https://github.com/HBLADEH/Dota2Forge/blob/3a2f6d0c8c3739d7a8da38cc4e116dc94d327023/docs/cookbook/plugin-showcase.md) · [Dota2Forge](https://github.com/HBLADEH/Dota2Forge/blob/3a2f6d0c8c3739d7a8da38cc4e116dc94d327023/README.md) · [反馈问题](https://github.com/HBLADEH/Dota2Forge/issues)
 
-> 发行版本：`0.1.0a6` · [目标分发仓库](https://github.com/HBLADEH/Dota2UID)。由主仓同一源码生成。
+> 发行版本：`0.1.0a7` · [目标分发仓库](https://github.com/HBLADEH/Dota2UID)。由主仓同一源码生成。
 
 ## 丨安装提醒
 
@@ -17,9 +17,11 @@
 > 这是 [GsCore](https://github.com/Genshin-bots/gsuid_core) 的扩展，安装到 GsCore 宿主。
 > 当前为 **M0 预发行，尚未上架商店**；[收录申请PR #40](https://github.com/Genshin-bots/GenshinUID-docs/pull/40)待审核。源码目录与独立分发目录用途不同；本分发采用随包运行库，安装与恢复采用下述流程。
 
-已有 QQ 单会话基础查询和图片验收记录。2026-10-05 本机已升级 `0.1.0a2`，现行 `do` 前缀、段位预估 MMR 与英雄出装已部署，冷启动 `ready/image`，[部署证据](https://github.com/HBLADEH/Dota2Forge/blob/f585ed310d6dd444c9046fba9fb8313ffc90c193/.agents/artifacts/gscore-current-deployment-v1/README.md)。本轮尚无客户端连接，新功能聊天待验收；下方共用此前 AstrBot 的出装图展示共享卡片。订阅默认关闭，当前实例保留原开关，真实推送仍待验收。
+已有 QQ 单会话基础查询和图片验收记录。2026-10-05 本机已升级 `0.1.0a2`，现行 `do` 前缀、段位预估 MMR 与英雄出装已部署，冷启动 `ready/image`，[部署证据](https://github.com/HBLADEH/Dota2Forge/blob/3a2f6d0c8c3739d7a8da38cc4e116dc94d327023/.agents/artifacts/gscore-current-deployment-v1/README.md)。本轮尚无客户端连接，新功能聊天待验收；下方共用此前 AstrBot 的出装图展示共享卡片。订阅默认关闭，当前实例保留原开关，真实推送仍待验收。
 
-本预发行版 a6 包含 Assets a1 的后台素材服务及 bundled 随包运行库；既有 a4 分发不含这些新增安装行为。默认 image/auto 首次后台准备，完整快照无需联网；自定义 illustration_path 不覆盖，可设 manual/off。
+2026-10-08已公开[随包a6](https://github.com/HBLADEH/Dota2UID/releases/tag/v0.1.0a6)并部署到现行Linux/Docker GsCore。运行库校验及冷启动通过，业务等待首次Token配置；原GsCore源码与全局依赖不变，[发行部署记录](https://github.com/HBLADEH/Dota2Forge/blob/3a2f6d0c8c3739d7a8da38cc4e116dc94d327023/.agents/artifacts/dota2uid-bundled-release-v1/README.md)。真实QQ新入口仍待验收。
+
+本预发行版 a7 在随包 a6 基础上增加[后台插件配置](https://github.com/HBLADEH/Dota2Forge/blob/3a2f6d0c8c3739d7a8da38cc4e116dc94d327023/docs/cookbook/gscore-configuration.md)；Token、素材与订阅可通过宿主参数页设置，旧 TOML 导入后保留。Assets a1 默认 image/auto 首次后台准备，完整快照无需联网；自定义 illustration_path 不覆盖，可设 manual/off。
 
 bundled 分发随仓库提供匹配项目运行库，缺核心时保留 `do帮助` 文字提示及主人权限的 `do安装核心` / `do核心状态`；安装不写宿主全局环境，修复后冷启动启用。宿主 HTTPX/Pillow 须兼容，步骤见[随包安装指南](INSTALL.md)。下述步骤仅适用于本 bundled 分发；旧 a4 请使用旧版公开安装指南。
 
@@ -27,11 +29,11 @@ bundled 分发随仓库提供匹配项目运行库，缺核心时保留 `do帮�
 
 1. 通过 GsCore 的 URL 安装功能添加本分发仓库，然后完整重启宿主。仓库携带匹配的四个项目运行包，启动时校验并准备插件专用运行目录，不需要先安装本项目 PyPI 包。
 2. 用主人身份发送 `do核心状态` 查看准备和加载结果。缺包或校验失败时发送 `do安装核心`，按提示完成恢复后完整重启宿主。恢复只使用清单固定版本与 SHA256，不接受聊天 URL、版本或 pip 参数。
-3. 运行库可用后，在本机 `data/Dota2UID/config.toml` 填写 `stratz_token` 和独立 `namespace`，再按提示停用并重新加载。Token 不发送到聊天。
+3. 在后台 **插件配置 → Dota2UID → 插件参数配置** 填写 STRATZ Token 和独立 `namespace`，点击确认修改。主人发送 `do停用` 确认关闭后，再重载当前插件。Token 不发送到聊天。
 
 `do帮助` / `do菜单` 在运行库未就绪时返回文字提示；配置未完成单独显示。HTTPX、Pillow 继续使用宿主兼容版本，第三方冲突须按 [安装指南](INSTALL.md)维护。运行中的安装或修复只准备新运行库，激活需要冷启动；已有绑定和配置保留。详细安装、更新与回退步骤见同一指南。
 
-独立分发目录与 ZIP 由[发行生成器](https://github.com/HBLADEH/Dota2Forge/blob/f585ed310d6dd444c9046fba9fb8313ffc90c193/docs/cookbook/plugin-release.md)生成。这是随包预发行分发；生成器只准备分发文件，生成动作本身不代表公开发布。
+独立分发目录与 ZIP 由[发行生成器](https://github.com/HBLADEH/Dota2Forge/blob/3a2f6d0c8c3739d7a8da38cc4e116dc94d327023/docs/cookbook/plugin-release.md)生成。这是随包预发行分发；生成器只准备分发文件，生成动作本身不代表公开发布。
 
 ## 丨快速开始
 
@@ -86,15 +88,15 @@ do主宰出装
 
 ![主宰热门出装共享卡片（来自 AstrBot）](screenshots/hero-items.png)
 
-按用户要求复用此前 AstrBot 实机原图；两端消费同一 Renderer，用于展示共享卡片样式。图片未包含命令输入，不构成 GsCore 聊天收发或指令捕获验收；[来源与范围](https://github.com/HBLADEH/Dota2Forge/blob/f585ed310d6dd444c9046fba9fb8313ffc90c193/docs/assets/screenshots/README.md)。其余截图文件名、画面内容与脱敏步骤见[截图清单](https://github.com/HBLADEH/Dota2Forge/blob/f585ed310d6dd444c9046fba9fb8313ffc90c193/docs/cookbook/plugin-showcase.md)。
+按用户要求复用此前 AstrBot 实机原图；两端消费同一 Renderer，用于展示共享卡片样式。图片未包含命令输入，不构成 GsCore 聊天收发或指令捕获验收；[来源与范围](https://github.com/HBLADEH/Dota2Forge/blob/3a2f6d0c8c3739d7a8da38cc4e116dc94d327023/docs/assets/screenshots/README.md)。其余截图文件名、画面内容与脱敏步骤见[截图清单](https://github.com/HBLADEH/Dota2Forge/blob/3a2f6d0c8c3739d7a8da38cc4e116dc94d327023/docs/cookbook/plugin-showcase.md)。
 
 ## 丨数据与使用说明
 
 - 玩家和比赛默认来自 STRATZ；出装来自 OpenDota。卡片保留来源、抓取时间和字段缺失状态，错误不会伪装成无战绩。
 - MMR 是根据段位换算的区间或下界，**不是精确天梯分**；未定级或未知段位不估算。
 - 默认图片回复，可用 `reply_mode = "text"` 切换文字。绘制失败回退同次数据的文字；发送失败不自动重发。
-- 英雄、装备和段位插图需要[显式配置本地素材](https://github.com/HBLADEH/Dota2Forge/blob/f585ed310d6dd444c9046fba9fb8313ffc90c193/docs/cookbook/illustrations.md)；缺图仍可用占位卡片，回复时不下载资源。
-- 订阅玩家、比赛、段位与日报见[订阅指南](https://github.com/HBLADEH/Dota2Forge/blob/f585ed310d6dd444c9046fba9fb8313ffc90c193/docs/cookbook/subscriptions.md)。默认关闭，群订阅需 Bot 管理员；两端同时部署要明确推送归属。
+- 英雄、装备和段位插图需要[显式配置本地素材](https://github.com/HBLADEH/Dota2Forge/blob/3a2f6d0c8c3739d7a8da38cc4e116dc94d327023/docs/cookbook/illustrations.md)；缺图仍可用占位卡片，回复时不下载资源。
+- 订阅玩家、比赛、段位与日报见[订阅指南](https://github.com/HBLADEH/Dota2Forge/blob/3a2f6d0c8c3739d7a8da38cc4e116dc94d327023/docs/cookbook/subscriptions.md)。默认关闭，群订阅需 Bot 管理员；两端同时部署要明确推送归属。
 
 英雄攻略、AI Tool、IMP 和 Deploy 尚未实现。其他平台、多账号及当前版本完整实机边界仍需单独验收。
 
@@ -112,4 +114,4 @@ do主宰出装
 
 README 结构参考 [GenshinUID](https://github.com/KimigaiiWuyi/GenshinUID)；图标呈现参考 [NTEUID](https://github.com/tyql688/NTEUID)，主宰图案为本项目独立生成的同人插画。感谢 GsCore、STRATZ 和 OpenDota。
 
-代码采用 [MIT](LICENSE)。Dota 2、主宰及相关角色权利属于 Valve；图标不是官方标识。第三方素材和字体遵循各自许可，详见[素材说明](https://github.com/HBLADEH/Dota2Forge/blob/f585ed310d6dd444c9046fba9fb8313ffc90c193/docs/cookbook/illustrations.md)。
+代码采用 [MIT](LICENSE)。Dota 2、主宰及相关角色权利属于 Valve；图标不是官方标识。第三方素材和字体遵循各自许可，详见[素材说明](https://github.com/HBLADEH/Dota2Forge/blob/3a2f6d0c8c3739d7a8da38cc4e116dc94d327023/docs/cookbook/illustrations.md)。

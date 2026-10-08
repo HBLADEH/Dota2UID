@@ -8,16 +8,32 @@ from gsuid_core.logger import logger
 from gsuid_core.sv import SV
 
 from Dota2UID.commands import Action, Caller
+from Dota2UID.config import ConfigurationError, load_config_values
 from Dota2UID.runtime import Runtime
 from Dota2UID.replies import ImageReply, Reply
 from Dota2UID.subscriptions import SUBSCRIPTION_COMMANDS
 from dota2forge_assets import ASSET_COMMANDS
 from dota2forge_core import DeliveryOutcome, InvalidIdentityError, SubscriptionEvent
+from . import settings
+from ._dota2forge_config import ConfigBridgeError
+
+
+def load_host_config(path):
+    if settings is None:
+        raise ConfigurationError()
+    try:
+        values = settings.snapshot()
+    except ConfigBridgeError:
+        raise ConfigurationError() from None
+    return load_config_values(path, values)
 
 # GsCore resolves the plugin owner from the caller's file. Keep this SV in the
 # generated plugins/Dota2UID/_dota2forge_business.py, rather than a runtime wheel.
 queries = SV("Dota2UID账号与查询", pm=6)
-runtime = Runtime(Path(__file__).resolve().parents[3] / "data" / "Dota2UID" / "config.toml")
+runtime = Runtime(
+    Path(__file__).resolve().parents[3] / "data" / "Dota2UID" / "config.toml",
+    config_loader=load_host_config,
+)
 JOB_ID = "Dota2UID-subscriptions"
 job_registered = False
 

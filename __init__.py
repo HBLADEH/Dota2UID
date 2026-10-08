@@ -16,9 +16,16 @@ from gsuid_core.webconsole.app_app import app
 from gsuid_core.webconsole.web_api import require_admin_header
 
 from ._dota2forge_runtime import BootstrapError, BundledRuntime
+from ._dota2forge_config import ConfigBridgeError, protect_config_traces, register_config
 
 PLUGIN_ROOT = Path(__file__).resolve().parent
 DATA_ROOT = Path(__file__).resolve().parents[3] / "data" / "Dota2UID"
+try:
+    protect_config_traces(app)
+    settings = register_config(DATA_ROOT)
+except ConfigBridgeError:
+    settings = None
+    logger.warning("Dota2UID configuration unavailable code=config_storage")
 BUSINESS_SV = "Dota2UID账号与查询"
 FALLBACK = (
     "Dota2UID 运行库尚未可用。请主人发送 do安装核心 准备运行库，"
@@ -225,6 +232,7 @@ class Bootstrap:
         result["restart_required"] = self.restart_required
         result["client_closed"] = True
         result["business_state"] = "unavailable"
+        result["configuration_available"] = settings is not None
         if self.business is not None:
             runtime = self.business.runtime
             result["business_state"] = runtime.state.value
@@ -244,6 +252,8 @@ class Bootstrap:
 
     def status_text(self) -> str:
         text = self.manager.status_text()
+        if settings is None:
+            text += "\n配置文件无法读取，请管理员按配置指南修复；原文件已保留。"
         if self.error:
             text += f"\n入口错误：{self.error}。"
         if self.closed:
@@ -254,8 +264,8 @@ class Bootstrap:
             state = self.business.runtime.state.value
             if state == "awaiting_config":
                 text += (
-                    "\n业务状态：等待配置（awaiting_config）。请在 data/Dota2UID/config.toml "
-                    "填写 STRATZ Token 和部署 namespace，然后按文档停用并重载；"
+                    "\n业务状态：等待配置（awaiting_config）。请在后台插件配置 → Dota2UID "
+                    "填写 STRATZ Token 和部署 namespace，确认修改后 do停用，再重载当前插件；"
                     "请勿在聊天中发送 Token。"
                 )
             else:
