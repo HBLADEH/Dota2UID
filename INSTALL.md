@@ -1,6 +1,6 @@
 # Dota2UID 随包运行库安装
 
-本页用于 **0.1.0a6 bundled 预发行分发**，公开下载见 [Dota2UID Releases](https://github.com/HBLADEH/Dota2UID/releases)。旧a4继续使用[旧安装流程](https://github.com/HBLADEH/Dota2Forge/blob/7efd87fbaacf612d2b8581866327923d2a52a771/docs/cookbook/gscore-public-install.md)。要求GsCore宿主Python 3.12+，源码和原有宿主逻辑无需修改。
+本页用于 **0.1.0a6 bundled 预发行分发**，公开下载见 [Dota2UID Releases](https://github.com/HBLADEH/Dota2UID/releases)。旧a4继续使用[旧安装流程](https://github.com/HBLADEH/Dota2Forge/blob/f585ed310d6dd444c9046fba9fb8313ffc90c193/docs/cookbook/gscore-public-install.md)。要求GsCore宿主Python 3.12+，源码和原有宿主逻辑无需修改。
 
 ## 安装与首次配置
 
@@ -29,8 +29,8 @@ HTTPX/Pillow继续使用宿主已经安装的兼容版本。根依赖声明只�
 
 更新前备份data/Dota2UID，先do停用并退出GsCore，再按宿主原有方式更新分发目录，最后冷启动。聊天修复只准备新运行库，下一次冷启动才激活；不要用热重载替代更新核心后的重启。回退须恢复匹配分发与兼容数据备份，不能将新schema数据库盲目交给旧版。
 
-卸载前先停用，再由宿主卸载插件并重启；保留data/Dota2UID以便恢复。运行库和共享第三方依赖不混在一起，不删除其他插件使用的包。普通业务命令与数据来源继续遵守[Dota2UID说明](https://github.com/HBLADEH/Dota2Forge/blob/7efd87fbaacf612d2b8581866327923d2a52a771/adapters/Dota2UID/README.md)。
+卸载前先停用，再由宿主卸载插件并重启；保留data/Dota2UID以便恢复。运行库和共享第三方依赖不混在一起，不删除其他插件使用的包。普通业务命令与数据来源继续遵守[Dota2UID说明](https://github.com/HBLADEH/Dota2Forge/blob/f585ed310d6dd444c9046fba9fb8313ffc90c193/adapters/Dota2UID/README.md)。
 
 ## 验证边界
 
-源码已通过统一禁网测试、双端分发检查与Windows实际SDK隔离生命周期验证；[实施任务](https://github.com/HBLADEH/Dota2Forge/blob/7efd87fbaacf612d2b8581866327923d2a52a771/.agents/tasks/done/2026-10-08-dota2uid-bundled-bootstrap.md)列出1740项测试、数据保留与联调边界。SDK-free测试不能证明宿主权限、热加载、QQ递送或Linux/Docker兼容；后续公开下载与部署事实见[发行部署证据](https://github.com/HBLADEH/Dota2Forge/blob/7efd87fbaacf612d2b8581866327923d2a52a771/.agents/artifacts/dota2uid-bundled-release-v1/README.md)。生成、构建和本地验证不代表商店已收录。
+源码已通过统一禁网测试、双端分发检查与Windows实际SDK隔离生命周期验证；[实施任务](https://github.com/HBLADEH/Dota2Forge/blob/f585ed310d6dd444c9046fba9fb8313ffc90c193/.agents/tasks/done/2026-10-08-dota2uid-bundled-bootstrap.md)列出1740项测试、数据保留与联调边界。SDK-free测试不能证明宿主权限、热加载、QQ递送或Linux/Docker兼容；后续公开下载与部署事实见[发行部署证据](https://github.com/HBLADEH/Dota2Forge/blob/f585ed310d6dd444c9046fba9fb8313ffc90c193/.agents/artifacts/dota2uid-bundled-release-v1/README.md)。生成、构建和本地验证不代表商店已收录。

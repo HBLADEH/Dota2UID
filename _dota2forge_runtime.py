@@ -483,7 +483,7 @@ def _process_lock(path: Path, stop: threading.Event) -> Iterator[None]:
             while not acquired:
                 _check_stop(stop)
                 try:
-                    if os.name == "nt":
+                    if sys.platform == "win32":
                         import msvcrt
 
                         stream.seek(0)
@@ -491,14 +491,14 @@ def _process_lock(path: Path, stop: threading.Event) -> Iterator[None]:
                     else:
                         import fcntl
 
-                        fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)  # type: ignore[attr-defined]
+                        fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
                     acquired = True
                 except OSError:
                     stop.wait(0.05)
             yield
         finally:
             if acquired:
-                if os.name == "nt":
+                if sys.platform == "win32":
                     import msvcrt
 
                     stream.seek(0)
@@ -506,7 +506,7 @@ def _process_lock(path: Path, stop: threading.Event) -> Iterator[None]:
                 else:
                     import fcntl
 
-                    fcntl.flock(stream.fileno(), fcntl.LOCK_UN)  # type: ignore[attr-defined]
+                    fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
 
 
 class _SecureRedirect(HTTPRedirectHandler):

@@ -5,7 +5,7 @@
   "wheels": {
     "dota2forge-assets": {
       "filename": "dota2forge_assets-0.1.0a1-py3-none-any.whl",
-      "sha256": "07ff194d53813e234bb6b3468721629b9afaf257aa06e30bf71bdff39c571322"
+      "sha256": "f6e2cbefe573edbf90919106e7ff2b70daa69787cda3be4006b4b7bba0b04662"
     },
     "dota2forge-core": {
       "filename": "dota2forge_core-0.1.0a4-py3-none-any.whl",
