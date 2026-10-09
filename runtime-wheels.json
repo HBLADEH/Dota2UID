@@ -1,5 +1,5 @@
 {
-  "release_tag": "v0.1.0a7",
+  "release_tag": "v0.1.0a8",
   "repository": "https://github.com/HBLADEH/Dota2UID",
   "schema_version": 1,
   "wheels": {
@@ -8,16 +8,16 @@
       "sha256": "f6e2cbefe573edbf90919106e7ff2b70daa69787cda3be4006b4b7bba0b04662"
     },
     "dota2forge-core": {
-      "filename": "dota2forge_core-0.1.0a4-py3-none-any.whl",
-      "sha256": "badd006aab7b7925e7d1922f8c2f7d3cd9d5610f46a8a50a872d3cafe9316f68"
+      "filename": "dota2forge_core-0.1.0a5-py3-none-any.whl",
+      "sha256": "12a0cfaf9a47951e2e371d1fc35a18a14f5a45876471848d4cfc79b2bfcbc031"
     },
     "dota2forge-renderer": {
       "filename": "dota2forge_renderer-0.1.0a4-py3-none-any.whl",
       "sha256": "c1bbceb2619a57c1db8880c99a4eaa99c55db4fac4fe8ea67d399bd372f472c6"
     },
     "dota2uid": {
-      "filename": "dota2uid-0.1.0a7-py3-none-any.whl",
-      "sha256": "2b9796aec2cb358c45a0ebb5df03fbd8104760a9beed319ccea3260ee1587abf"
+      "filename": "dota2uid-0.1.0a8-py3-none-any.whl",
+      "sha256": "acf7fdd9f7528cf862a64bb0d22ecb6b24cf36b85476ffef1d546c51520c2675"
     }
   }
 }
