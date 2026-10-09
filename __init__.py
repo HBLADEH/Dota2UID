@@ -1,6 +1,7 @@
 """GsCore management bridge usable without installed Dota2Forge packages."""
 
 import asyncio
+import copy
 import importlib.util
 import sys
 from pathlib import Path
@@ -15,7 +16,13 @@ from gsuid_core.sv import Plugins, SV
 from gsuid_core.webconsole.app_app import app
 from gsuid_core.webconsole.web_api import require_admin_header
 
-from ._dota2forge_runtime import BootstrapError, BundledRuntime
+from ._dota2forge_runtime import (
+    BootstrapError,
+    BundledRuntime,
+    RuntimeSwitch,
+    claim_runtime,
+    storage_fingerprint,
+)
 from ._dota2forge_config import ConfigBridgeError, protect_config_traces, register_config
 
 PLUGIN_ROOT = Path(__file__).resolve().parent
@@ -29,15 +36,14 @@ except ConfigBridgeError:
 BUSINESS_SV = "Dota2UID账号与查询"
 FALLBACK = (
     "Dota2UID 运行库尚未可用。请主人发送 do安装核心 准备运行库，"
-    "完成后完整重启 GsCore；do核心状态 可查看原因。请勿在聊天中发送 Token。"
+    "完成后重载插件；do核心状态 可查看原因。请勿在聊天中发送 Token。"
 )
+HOT_RELOAD_PROTOCOL = 1
+CLOSE_TIMEOUT = 30.0
 
 
 def valid_arguments(ev: Event) -> bool:
-    return (
-        isinstance(ev.text, str) and not ev.text.strip()
-        and not ev.at_list and ev.at is None
-    )
+    return isinstance(ev.text, str) and not ev.text.strip() and not ev.at_list and ev.at is None
 
 
 def valid_admin(ev: Event) -> bool:
@@ -48,9 +54,7 @@ def business_snapshot():
     registry = getattr(sv, "SL", None)
     services = getattr(registry, "lst", {})
     previous = services.get(BUSINESS_SV)
-    triggers = {
-        kind: dict(items) for kind, items in getattr(previous, "TL", {}).items()
-    }
+    triggers = {kind: dict(items) for kind, items in getattr(previous, "TL", {}).items()}
     return previous, triggers
 
 
@@ -78,11 +82,22 @@ def restore_business(snapshot) -> None:
 
 
 class Bootstrap:
-    def __init__(self) -> None:
+    protocol = HOT_RELOAD_PROTOCOL
+
+    def __init__(self, previous=None) -> None:
         self.manager = BundledRuntime(PLUGIN_ROOT, DATA_ROOT)
         self.business = None
+        self.active_manager = None
+        self.active_source = None
+        self.active_config = None
+        self.previous = previous
+        self.legacy = previous is not None and (
+            getattr(previous, "protocol", None) != HOT_RELOAD_PROTOCOL
+            or getattr(previous, "legacy", False)
+            or getattr(previous, "restart_required", False)
+        )
         self.closed = False
-        self.restart_required = False
+        self.restart_required = self.legacy
         self.error = None
         self.started = False
         self.start_task = None
@@ -91,9 +106,23 @@ class Bootstrap:
         self.install_lock = asyncio.Lock()
         self.callbacks = {}
         self.registered_hooks = set()
+        self.switch_state = "idle"
+        self.pending_reload = False
+        self.config_values = None
+        self.source = None
+        try:
+            self.manager.freeze()
+            self.source = self.manager.bridge
+            if settings is not None:
+                self.config_values = copy.deepcopy(settings.snapshot())
+        except (BootstrapError, OSError, ConfigBridgeError):
+            self.error = "invalid_manifest"
+        if self.legacy:
+            self.business = previous.business
+            self.error = "reload_incompatible"
 
     async def start(self) -> None:
-        if self.closed or self.restart_required or self.started:
+        if self.closed or self.restart_required or self.started or self.pending_reload:
             return
         self.started = True
         startup = asyncio.create_task(self.start_business())
@@ -110,48 +139,193 @@ class Bootstrap:
             raise
 
     async def start_business(self) -> None:
-        snapshot = business_snapshot()
-        candidate = None
-        module_name = __name__ + "._dota2forge_business"
         try:
-            generation = await self.manager.prepare(allow_download=False)
-            if generation is None or self.closed or self.restart_required:
-                return
-            self.manager.activate()
-            spec = importlib.util.spec_from_file_location(
-                module_name, PLUGIN_ROOT / "_dota2forge_business.py"
-            )
-            if spec is None or spec.loader is None:
-                raise ImportError("Missing business bridge")
-            candidate = importlib.util.module_from_spec(spec)
-            sys.modules[module_name] = candidate
-            spec.loader.exec_module(candidate)
-            await candidate.start_dota2uid()
-            if self.closed:
-                await self.discard_business(candidate, module_name, snapshot)
-                return
-            self.business = candidate
+            async with registry.operation_lock:
+                if self.closed or registry.owners.get(owner_key) is not self:
+                    return
+                await self.transition()
         except asyncio.CancelledError:
             self.error = "cancelled"
-            # Preserve ownership until cleanup completes, including repeated
-            # cancellation while Runtime.close waits for active sends/workers.
-            cleanup = asyncio.create_task(self.discard_business(candidate, module_name, snapshot))
-            while not cleanup.done():
-                try:
-                    await asyncio.shield(cleanup)
-                except asyncio.CancelledError:
-                    continue
-            cleanup.result()
             raise
         except BootstrapError as exc:
             self.error = exc.code
             logger.warning(f"Dota2UID runtime unavailable code={exc.code}")
         except Exception:
             self.error = "business_import"
-            await self.discard_business(candidate, module_name, snapshot)
             logger.error("Dota2UID business startup failed code=business_import")
         finally:
             self.start_task = None
+
+    async def transition(self) -> None:
+        previous = self.previous
+        # A rapid sequence can leave an unstarted owner between us and the active
+        # owner. Never lose the reference to that still-live lifecycle.
+        while previous is not None and previous.business is None and previous.previous is not None:
+            previous = previous.previous
+        self.previous = previous
+        snapshot = business_snapshot()
+        candidate = None
+        transaction = None
+        fingerprint = None
+        previous_closed = False
+        try:
+            self.switch_state = "preparing"
+            if self.error is not None:
+                raise BootstrapError(self.error)
+            generation = await self.manager.prepare(allow_download=False)
+            if generation is None:
+                raise BootstrapError(self.manager.error or "preparation_failed")
+            if self.closed or registry.owners.get(owner_key) is not self:
+                return
+            if previous is not None and previous.active_manager is not None:
+                transaction = RuntimeSwitch(
+                    previous.active_manager,
+                    self.manager,
+                    owner_key,
+                    __name__,
+                )
+                fingerprint = storage_fingerprint(DATA_ROOT)
+                self.switch_state = "closing"
+                previous_closed = True
+                closing = asyncio.create_task(previous.close())
+                done, _ = await asyncio.wait({closing}, timeout=CLOSE_TIMEOUT)
+                if not done:
+                    self.restart_required = True
+                    raise BootstrapError("close_timeout")
+                closing.result()
+                if self.closed or registry.owners.get(owner_key) is not self:
+                    return
+                # Recheck the persisted schema after all old transactions exited.
+                fingerprint = storage_fingerprint(DATA_ROOT)
+                transaction.detach()
+            self.switch_state = "loading"
+            self.manager.activate()
+            claim_runtime(self.manager, owner_key)
+            candidate = await self.load_business(self.source, self.config_values)
+            if self.closed or registry.owners.get(owner_key) is not self:
+                raise BootstrapError("superseded")
+            self.business = candidate
+            self.active_manager = self.manager
+            self.active_source, self.active_config = self.source, self.config_values
+            if hasattr(candidate, "runtime"):
+                await candidate.start_dota2uid()
+            self.manager.record_active()
+            self.error = None
+            self.previous = None
+            self.switch_state = "idle"
+        except BaseException as exc:
+            code = (
+                exc.code
+                if isinstance(exc, BootstrapError)
+                else ("cancelled" if isinstance(exc, asyncio.CancelledError) else "business_import")
+            )
+            self.error = code
+            # Cleanup remains owned even if GsCore cancels the previous hook's
+            # waiter several times during another native reload.
+            cleanup = asyncio.create_task(
+                self.recover(
+                    candidate,
+                    snapshot,
+                    transaction,
+                    previous,
+                    previous_closed,
+                    fingerprint,
+                )
+            )
+            while not cleanup.done():
+                try:
+                    await asyncio.shield(cleanup)
+                except asyncio.CancelledError:
+                    continue
+            cleanup.result()
+            if isinstance(exc, asyncio.CancelledError):
+                raise
+            logger.warning(f"Dota2UID runtime unavailable code={self.error}")
+
+    async def load_business(self, source, values):
+        module_name = __name__ + "._dota2forge_business"
+        path = PLUGIN_ROOT / "_dota2forge_business.py"
+        spec = importlib.util.spec_from_file_location(module_name, path)
+        if spec is None or spec.loader is None or source is None:
+            raise ImportError("Missing frozen business bridge")
+        candidate = importlib.util.module_from_spec(spec)
+        candidate.CONFIG_VALUES = copy.deepcopy(values)
+        sys.modules[module_name] = candidate
+        try:
+            exec(compile(source, str(path), "exec", dont_inherit=True), candidate.__dict__)
+            if hasattr(candidate, "runtime"):
+                await candidate.runtime.start()
+                if candidate.runtime.state.value not in {"ready", "awaiting_config"}:
+                    raise BootstrapError("business_start")
+            else:
+                await candidate.start_dota2uid()
+            return candidate
+        except BaseException:
+            # Expose the partial candidate to the owned recovery path.
+            self.partial_business = candidate
+            raise
+
+    async def recover(
+        self, candidate, snapshot, transaction, previous, previous_closed, fingerprint
+    ):
+        candidate = candidate or getattr(self, "partial_business", None)
+        await self.discard_business(candidate, __name__ + "._dota2forge_business", snapshot)
+        self.business = None
+        self.active_manager = None
+        if previous is None:
+            self.switch_state = "failed"
+            return
+        if not previous_closed:
+            self.adopt(previous)
+            await self.restore_live_business()
+            self.switch_state = "retained"
+            return
+        if transaction is None or not transaction.detached or self.error == "close_timeout":
+            self.restart_required = True
+            self.switch_state = "failed"
+            return
+        try:
+            if storage_fingerprint(DATA_ROOT) != fingerprint:
+                raise BootstrapError("storage_changed")
+            transaction.restore()
+            if self.closed:
+                self.switch_state = "stopped"
+                return
+            self.active_source, self.active_config = previous.active_source, previous.active_config
+            self.business = await self.load_business(self.active_source, self.active_config)
+            self.active_manager = previous.active_manager
+            await self.business.start_dota2uid()
+            self.active_manager.record_active()
+            self.switch_state = "rolled_back"
+            self.previous = None
+        except BaseException as failure:
+            self.error = failure.code if isinstance(failure, BootstrapError) else "rollback_failed"
+            await self.discard_business(
+                self.business or getattr(self, "partial_business", None),
+                __name__ + "._dota2forge_business",
+                business_snapshot(),
+            )
+            self.business = None
+            self.restart_required = True
+            self.switch_state = "failed"
+
+    def adopt(self, previous) -> None:
+        self.business = previous.business
+        self.active_manager = previous.active_manager
+        self.active_source, self.active_config = previous.active_source, previous.active_config
+        self.previous = None
+        # The registry's new owner now holds the still-live resources. Keep the
+        # old callbacks harmless without closing the adopted business.
+        previous.business = None
+
+    async def restore_live_business(self) -> None:
+        if self.business is None:
+            return
+        service = SV(BUSINESS_SV, pm=6)
+        triggers = {key: dict(value) for key, value in self.business.queries.TL.items()}
+        service.TL.clear()
+        service.TL.update(triggers)
+        await self.business.start_dota2uid()
 
     async def discard_business(self, candidate, module_name, snapshot) -> None:
         try:
@@ -159,7 +333,11 @@ class Bootstrap:
             if close is not None:
                 await close()
         except Exception:
+            self.error = "business_close"
+            self.restart_required = True
+            self.switch_state = "failed"
             logger.error("Dota2UID business cleanup failed code=business_close")
+            raise BootstrapError("business_close") from None
         finally:
             restore_business(snapshot)
             sys.modules.pop(module_name, None)
@@ -170,26 +348,36 @@ class Bootstrap:
                 await bot.send("Dota2UID 已停用；请完整重启 GsCore 后再安装。")
                 return
             if (
-                self.install_task is not None and not self.install_task.done()
-                or self.start_task is not None and not self.start_task.done()
+                self.install_task is not None
+                and not self.install_task.done()
+                or self.start_task is not None
+                and not self.start_task.done()
                 or self.manager.state == "preparing"
             ):
                 await bot.send("Dota2UID 正在准备运行库；请使用 do核心状态 查看进度。")
                 return
-            await bot.send("Dota2UID 开始准备运行库；完成后需完整重启 GsCore。")
+            await bot.send("Dota2UID 开始准备运行库；完成后请重载插件。")
             self.install_task = asyncio.create_task(self.prepare_install(bot))
 
     async def prepare_install(self, bot: Bot) -> None:
         try:
-            generation = await self.manager.prepare(allow_download=True)
+            async with registry.operation_lock:
+                if self.closed or registry.owners.get(owner_key) is not self:
+                    return
+                if self.active_manager is self.manager:
+                    self.manager = BundledRuntime(PLUGIN_ROOT, DATA_ROOT)
+                    self.manager.freeze()
+                generation = await self.manager.prepare(allow_download=True)
             if self.closed:
                 return
             if generation is None:
                 await self.send_install_result(bot, self.status_text())
                 return
-            self.restart_required = True
             self.error = None
-            await self.send_install_result(bot, "Dota2UID 运行库已准备；请完整重启 GsCore 后启用。")
+            self.pending_reload = True
+            await self.send_install_result(
+                bot, "Dota2UID 运行库已准备；请重载插件启用，do核心状态 可确认实际版本。"
+            )
         except BootstrapError as exc:
             self.error = exc.code
             if not self.closed:
@@ -217,13 +405,20 @@ class Bootstrap:
     async def finish_close(self) -> None:
         await self.manager.close()
         pending = [
-            task for task in (self.start_task, self.install_task)
+            task
+            for task in (self.start_task, self.install_task)
             if task is not None and task is not asyncio.current_task()
         ]
         if pending:
             await asyncio.gather(*pending, return_exceptions=True)
         if self.business is not None:
             await self.business.stop_dota2uid()
+        elif getattr(self, "partial_business", None) is not None:
+            close = getattr(self.partial_business, "stop_dota2uid", None)
+            if close is not None:
+                await close()
+        if self.previous is not None:
+            await self.previous.close()
 
     def status(self) -> dict[str, str | bool]:
         result = dict(self.manager.status())
@@ -233,25 +428,48 @@ class Bootstrap:
         result["client_closed"] = True
         result["business_state"] = "unavailable"
         result["configuration_available"] = settings is not None
-        if self.business is not None:
-            runtime = self.business.runtime
+        result["switch_state"] = self.switch_state
+        result["expected_versions"] = str(self.manager.versions)
+        result["expected_manifest"] = self.manager.digest
+        result["prepared_versions"] = str(self.manager.versions) if self.manager.generation else ""
+        result["prepared_manifest"] = self.manager.digest if self.manager.generation else ""
+        active_owner = self
+        while active_owner.business is None and active_owner.previous is not None:
+            active_owner = active_owner.previous
+        active = self.active_manager or active_owner.active_manager
+        active_business = self.business or active_owner.business
+        result["active_versions"] = str(active.versions) if active else ""
+        result["active_manifest"] = active.digest if active else ""
+        if active_business is not None:
+            runtime = active_business.runtime
             result["business_state"] = runtime.state.value
             result["client_closed"] = runtime.client_closed
             result["assets_state"] = runtime.asset_status.state
         if self.closed:
             result["state"] = "stopped"
+        elif self.switch_state in {"preparing", "closing", "loading"}:
+            result["state"] = "switching"
         elif self.error == "business_import":
             result["state"] = "business_failed"
         elif self.error == "cancelled":
             result["state"] = "cancelled"
+        elif self.switch_state == "failed" and not self.restart_required:
+            result["state"] = "failed"
         elif self.restart_required:
             result["state"] = "pending_restart"
+        elif self.pending_reload:
+            result["state"] = "pending_reload"
         elif self.business is not None:
             result["state"] = self.business.runtime.state.value
         return result
 
     def status_text(self) -> str:
         text = self.manager.status_text()
+        active_owner = self
+        while active_owner.business is None and active_owner.previous is not None:
+            active_owner = active_owner.previous
+        active = self.active_manager or active_owner.active_manager
+        active_business = self.business or active_owner.business
         if settings is None:
             text += "\n配置文件无法读取，请管理员按配置指南修复；原文件已保留。"
         if self.error:
@@ -259,9 +477,17 @@ class Bootstrap:
         if self.closed:
             return text + "\nDota2UID 已停用，需完整重启 GsCore。"
         if self.restart_required:
-            text += "\n运行库待完整重启 GsCore 后启用；热重载不会切换已加载模块。"
-        if self.business is not None:
-            state = self.business.runtime.state.value
+            text += "\n当前情况不能安全热切换，请完整重启 GsCore。"
+        elif self.pending_reload:
+            text += "\n运行库已准备，重载插件后启用。"
+        text += "\n期望版本：" + str(self.manager.versions)
+        text += "\n运行版本：" + (str(active.versions) if active else "未启用")
+        text += "\n期望摘要：" + self.manager.digest[:12]
+        if active:
+            text += "\n运行摘要：" + active.digest[:12]
+        text += "\n切换状态：" + self.switch_state
+        if active_business is not None:
+            state = active_business.runtime.state.value
             if state == "awaiting_config":
                 text += (
                     "\n业务状态：等待配置（awaiting_config）。请在后台插件配置 → Dota2UID "
@@ -281,31 +507,24 @@ if registry is None:
     registry = ModuleType(registry_name)
     registry.owners = {}
     sys.modules[registry_name] = registry
+if not hasattr(registry, "operation_lock"):
+    registry.operation_lock = asyncio.Lock()
 owner_key = str(PLUGIN_ROOT)
-owner = registry.owners.get(owner_key)
-if owner is not None and (
-    owner.closed and owner.close_task is not None and owner.close_task.done()
-    and not owner.close_task.cancelled() and owner.close_task.exception() is None
-):
-    # A completed explicit stop permits a config-only reload. The runtime loader
-    # still rejects a different generation if project modules remain in memory.
+previous_owner = registry.owners.get(owner_key)
+if previous_owner is not None:
     for hook_name, collection_name in (
         ("on_core_start_before", "core_start_before_def"),
         ("on_core_start", "core_start_def"),
         ("on_core_shutdown", "core_shutdown_def"),
     ):
         collection = getattr(server, collection_name, None)
-        callback = owner.callbacks.get(hook_name)
+        callback = previous_owner.callbacks.get(hook_name)
         if collection is not None:
             stale = [hook for hook in collection if getattr(hook, "func", hook) is callback]
             for hook in stale:
                 collection.remove(hook)
-    owner = None
-if owner is None:
-    owner = Bootstrap()
-    registry.owners[owner_key] = owner
-else:
-    owner.restart_required = True
+owner = Bootstrap(previous_owner)
+registry.owners[owner_key] = owner
 
 Plugins(name="Dota2UID", prefix=[], allow_empty_prefix=True)
 help_service = SV("Dota2UID帮助入口", pm=6)
@@ -387,7 +606,8 @@ async def close_dota2uid() -> dict[str, str | bool]:
 routes = getattr(getattr(app, "router", None), "routes", None)
 if routes is not None:
     routes[:] = [
-        route for route in routes
+        route
+        for route in routes
         if not (
             getattr(route, "path", None) in {"/api/dota2uid/status", "/api/dota2uid/stop"}
             and getattr(getattr(route, "endpoint", None), "__module__", None) == __name__
