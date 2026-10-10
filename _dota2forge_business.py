@@ -17,12 +17,15 @@ from dota2forge_core import DeliveryOutcome, InvalidIdentityError, SubscriptionE
 from . import settings
 from ._dota2forge_config import ConfigBridgeError
 
+HOT_RELOAD_PROTOCOL = 1
+enabled = False
+
 
 def load_host_config(path):
     if settings is None:
         raise ConfigurationError()
     try:
-        values = settings.snapshot()
+        values = CONFIG_VALUES if "CONFIG_VALUES" in globals() else settings.snapshot()
     except ConfigBridgeError:
         raise ConfigurationError() from None
     return load_config_values(path, values)
@@ -70,14 +73,16 @@ async def poll_subscriptions() -> None:
 
 
 async def start_dota2uid() -> None:
-    global job_registered
+    global job_registered, enabled
     await runtime.start()
-    if runtime.state.value == "ready" and runtime.subscriptions_enabled and not job_registered:
+    enabled = runtime.state.value in {"ready", "awaiting_config"}
+    if runtime.state.value == "ready" and runtime.subscriptions_enabled:
         from gsuid_core.aps import scheduler
-        scheduler.add_job(
-            poll_subscriptions, "interval", seconds=60, id=JOB_ID,
-            max_instances=1, coalesce=True, replace_existing=True,
-        )
+        if scheduler.get_job(JOB_ID) is None:
+            scheduler.add_job(
+                poll_subscriptions, "interval", seconds=60, id=JOB_ID,
+                max_instances=1, coalesce=True, replace_existing=True,
+            )
         job_registered = True
     logger.info(
         f"Dota2UID initialized state={runtime.state.value} "
@@ -86,7 +91,8 @@ async def start_dota2uid() -> None:
 
 
 async def stop_dota2uid() -> None:
-    global job_registered
+    global job_registered, enabled
+    enabled = False
     if job_registered:
         from gsuid_core.aps import scheduler
         if scheduler.get_job(JOB_ID) is not None:
@@ -108,6 +114,8 @@ async def stop_dota2uid() -> None:
 )
 @queries.on_regex(r"^do(?P<hero>.{1,64})出装$", block=True)
 async def command_dota2uid(bot: Bot, ev: Event) -> None:
+    if not enabled:
+        return
     caller = Caller(
         ev.bot_id, ev.bot_self_id, ev.user_id, ev.WS_BOT_ID,
         bool(ev.at_list) or ev.at is not None,

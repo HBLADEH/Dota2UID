@@ -17,6 +17,7 @@ import os
 import platform
 import re
 import shutil
+import sqlite3
 import stat
 import subprocess
 import sys
@@ -25,11 +26,11 @@ import time
 import uuid
 import zlib
 from collections.abc import Buffer, Iterator
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from email.parser import BytesParser
 from http.client import HTTPMessage
 from pathlib import Path, PurePosixPath
-from types import CodeType
+from types import CodeType, FunctionType, ModuleType
 from typing import IO, cast
 from urllib.error import URLError
 from urllib.parse import urlsplit
@@ -50,6 +51,8 @@ MINIMUM_PYTHON = (3, 12)
 DOWNLOAD_TIMEOUT = 10.0
 DOWNLOAD_DEADLINE = 60.0
 PROBE_TIMEOUT = 30.0
+HOT_RELOAD_CONTRACT = "dota2forge-storage-1-3-report-2"
+LEASE_REGISTRY = "_dota2forge_gscore_runtime_leases"
 VERSION_PATTERN = r"[0-9][0-9A-Za-z.!+-]{0,63}"
 ERROR_TEXT = {
     "invalid_manifest": "发行清单无效，请重新安装插件。",
@@ -65,6 +68,10 @@ ERROR_TEXT = {
     "cancelled": "运行库准备已取消。",
     "not_prepared": "运行库尚未准备，请发送 do安装核心。",
     "stopped": "插件已关闭，运行库任务已停止。",
+    "reload_incompatible": "本次运行库或旧入口不支持安全热切换，请完整重启 GsCore。",
+    "runtime_shared": "项目运行库被其他消费者引用，请完整重启 GsCore。",
+    "close_timeout": "旧业务尚未完成关闭，请等待停用结束后完整重启 GsCore。",
+    "storage_changed": "业务启动已改变持久数据，不能自动回退；请管理员检查后冷启动。",
 }
 
 
@@ -458,6 +465,32 @@ def _requirements(generation: Path, versions: dict[str, str]) -> list[str]:
     return result
 
 
+def _hot_storage_contract(generation: Path, contract: str) -> None:
+    if not contract:
+        return
+    if contract != HOT_RELOAD_CONTRACT:
+        raise BootstrapError("reload_incompatible")
+    for filename, application_id, schema in (
+        ("sqlite.py", 0x44324647, 1),
+        ("subscriptions.py", 0x44325355, 3),
+    ):
+        path = generation / "dota2forge_core/infrastructure" / filename
+        try:
+            tree = ast.parse(path.read_bytes())
+            constants = {
+                target.id: ast.literal_eval(node.value)
+                for node in tree.body
+                if isinstance(node, ast.Assign)
+                for target in node.targets
+                if isinstance(target, ast.Name)
+                and target.id in {"_APPLICATION_ID", "_SCHEMA_VERSION"}
+            }
+        except (OSError, SyntaxError, ValueError):
+            raise BootstrapError("reload_incompatible") from None
+        if constants != {"_APPLICATION_ID": application_id, "_SCHEMA_VERSION": schema}:
+            raise BootstrapError("reload_incompatible")
+
+
 def _check_stop(stop: threading.Event) -> None:
     if stop.is_set():
         raise BootstrapError("cancelled")
@@ -721,6 +754,41 @@ class BundledRuntime:
         self._stop = threading.Event()
         self._task: asyncio.Task[Path | None] | None = None
         self._closed = False
+        self._frozen: tuple[dict[str, str], dict[str, dict[str, str]], str, str] | None = None
+        self.contract = ""
+        self.bridge: bytes | None = None
+
+    def freeze(self) -> None:
+        """Capture the authenticated manifest and bridge before any asynchronous work."""
+        self._frozen = _manifest(self.plugin_root)
+        deployment = _json_dict(self.plugin_root / "deployment.json")
+        reload = deployment.get("hot_reload")
+        if reload is None:
+            return
+        if (
+            not isinstance(reload, dict)
+            or type(reload.get("protocol")) is not int
+            or reload.get("protocol") != 1
+        ):
+            raise BootstrapError("invalid_manifest")
+        contract = reload.get("contract")
+        digest = reload.get("business_sha256")
+        if not isinstance(contract, str) or not contract or not isinstance(digest, str):
+            raise BootstrapError("invalid_manifest")
+        bridge_path = self.plugin_root / "_dota2forge_business.py"
+        _safe_directory(bridge_path)
+        bridge = bridge_path.read_bytes()
+        if _hash(bridge) != digest:
+            raise BootstrapError("invalid_manifest")
+        self.contract, self.bridge = contract, bridge
+
+    @property
+    def versions(self) -> dict[str, str]:
+        return dict(self._versions or (self._frozen[0] if self._frozen else {}))
+
+    @property
+    def digest(self) -> str:
+        return self._digest or (self._frozen[3] if self._frozen else "")
 
     async def prepare(self, *, allow_download: bool = False) -> Path | None:
         if self._closed:
@@ -755,7 +823,7 @@ class BundledRuntime:
             if sys.version_info < MINIMUM_PYTHON:
                 raise BootstrapError("dependency_incompatible")
             _safe_directory(self.plugin_root)
-            versions, wheels, url, digest = _manifest(self.plugin_root)
+            versions, wheels, url, digest = self._frozen or _manifest(self.plugin_root)
             runtime = self.data_root / "runtime"
             _safe_directory(runtime)
             runtime.mkdir(parents=True, exist_ok=True)
@@ -792,6 +860,7 @@ class BundledRuntime:
                 for candidate in candidates:
                     if _complete(candidate, digest, self._stop):
                         _dependencies(versions, _requirements(candidate, versions))
+                        _hot_storage_contract(candidate, self.contract)
                         _probe(candidate, versions, self._stop)
                         self._publish(runtime, candidate, versions, digest)
                         return candidate
@@ -828,6 +897,7 @@ class BundledRuntime:
                     with target.open("xb") as stream:
                         stream.write(data)
                 _dependencies(versions, _requirements(staging, versions))
+                _hot_storage_contract(staging, self.contract)
                 _probe(staging, versions, self._stop)
                 _atomic_json(
                     staging / ".complete.json",
@@ -899,6 +969,19 @@ class BundledRuntime:
             self.state, self.error = "failed", exc.code
             raise
 
+    def record_active(self) -> None:
+        if self.generation is None:
+            raise BootstrapError("not_prepared")
+        _atomic_json(
+            self.data_root / "runtime/active.json",
+            {
+                "schema_version": 1,
+                "manifest_sha256": self.digest,
+                "generation": self.generation.name,
+                "versions": self.versions,
+            },
+        )
+
     async def close(self) -> None:
         self._closed = True
         self._stop.set()
@@ -926,3 +1009,156 @@ class BundledRuntime:
             "runtime_available": "运行库可用。",
             "stopped": ERROR_TEXT["stopped"],
         }.get(self.state, "运行库尚未准备。")
+
+
+def _project_modules() -> dict[str, ModuleType]:
+    return {
+        name: module
+        for name, module in sys.modules.copy().items()
+        if isinstance(module, ModuleType)
+        and any(name == root or name.startswith(root + ".") for root in PACKAGES.values())
+    }
+
+
+def _leases() -> dict[str, str]:
+    registry = sys.modules.get(LEASE_REGISTRY)
+    if registry is None:
+        registry = ModuleType(LEASE_REGISTRY)
+        sys.modules[LEASE_REGISTRY] = registry
+        registry.__dict__["owners"] = {}
+    return cast(dict[str, str], registry.__dict__["owners"])
+
+
+def claim_runtime(manager: BundledRuntime, owner_key: str) -> None:
+    if manager.generation is None:
+        raise BootstrapError("not_prepared")
+    leases = _leases()
+    if any(key != owner_key for key in leases):
+        raise BootstrapError("runtime_shared")
+    leases[owner_key] = str(manager.generation.resolve())
+
+
+def storage_fingerprint(data_root: Path) -> dict[str, str]:
+    """Read only local store schema and hashes, never row values or credentials."""
+    result = {}
+    for name, application_id, version in (
+        ("bindings.sqlite3", 0x44324647, 1),
+        ("subscriptions.sqlite3", 0x44325355, 3),
+    ):
+        path = data_root / name
+        if not path.exists():
+            result[name] = "missing"
+            continue
+        _safe_directory(path)
+        try:
+            with closing(
+                sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)
+            ) as connection:
+                if (
+                    connection.execute("PRAGMA application_id").fetchone()[0] != application_id
+                    or connection.execute("PRAGMA user_version").fetchone()[0] != version
+                ):
+                    raise BootstrapError("reload_incompatible")
+            result[name] = _hash(path.read_bytes())
+        except sqlite3.Error:
+            raise BootstrapError("reload_incompatible") from None
+    return result
+
+
+class RuntimeSwitch:
+    """One exclusive, fully drained generation replacement; no SDK or business I/O."""
+
+    def __init__(
+        self, previous: BundledRuntime, candidate: BundledRuntime, owner_key: str, bridge_name: str
+    ) -> None:
+        old, new = previous.generation, candidate.generation
+        if old is None or new is None:
+            raise BootstrapError("not_prepared")
+        if (
+            previous.contract != candidate.contract
+            or candidate.contract != HOT_RELOAD_CONTRACT
+            or _leases().get(owner_key) != str(old.resolve())
+            or any(key != owner_key for key in _leases())
+        ):
+            raise BootstrapError("reload_incompatible")
+        self.previous, self.candidate, self.owner_key = previous, candidate, owner_key
+        self.old, self.new = old.resolve(), new.resolve()
+        self.bridge_name = bridge_name
+        self.modules = self.verify()
+        self.hooks = list(sys.path_hooks)
+        self.detached = False
+
+    def verify(self) -> dict[str, ModuleType]:
+        modules = _project_modules()
+        for module in modules.values():
+            origin = getattr(module, "__file__", None)
+            if not isinstance(origin, str) or not Path(origin).resolve().is_relative_to(self.old):
+                raise BootstrapError("module_conflict")
+        # Reject visible references held by unrelated consumers. Hidden references
+        # cannot be discovered generally; the supported contract requires exclusive
+        # project package use by this adapter and its registered lifecycle owner.
+        for name, module in sys.modules.copy().items():
+            if not isinstance(module, ModuleType) or name in modules:
+                continue
+            if name == self.bridge_name or name.startswith(self.bridge_name + "."):
+                continue
+            if name.startswith("_dota2forge_gscore_"):
+                continue
+            for value in tuple(module.__dict__.values()):
+                origin_name = (
+                    value.__name__
+                    if isinstance(value, ModuleType)
+                    else getattr(value, "__module__", None)
+                    if isinstance(value, (type, FunctionType))
+                    else None
+                )
+                if isinstance(origin_name, str) and any(
+                    origin_name == root or origin_name.startswith(root + ".")
+                    for root in PACKAGES.values()
+                ):
+                    raise BootstrapError("runtime_shared")
+        return modules
+
+    def detach(self) -> None:
+        for name, module in self.modules.items():
+            if sys.modules.get(name) is not module:
+                raise BootstrapError("module_conflict")
+        # Capture late imports only after all old request stacks exited.
+        self.modules = self.verify()
+        for name in self.modules:
+            sys.modules.pop(name)
+        old = str(self.old)
+        sys.path[:] = [path for path in sys.path if path != old]
+        sys.path_hooks[:] = [
+            hook for hook in sys.path_hooks if getattr(hook, "_dota2forge_generation", None) != old
+        ]
+        for value in tuple(sys.path_importer_cache):
+            if Path(value).absolute().is_relative_to(self.old):
+                del sys.path_importer_cache[value]
+        self.detached = True
+
+    def restore(self) -> None:
+        if not self.detached:
+            return
+        for name, module in _project_modules().items():
+            origin = getattr(module, "__file__", None)
+            if not isinstance(origin, str) or not Path(origin).resolve().is_relative_to(self.new):
+                raise BootstrapError("module_conflict")
+            sys.modules.pop(name)
+        sys.modules.update(self.modules)
+        # Preserve unrelated paths/finders introduced during async initialization.
+        new = str(self.new)
+        sys.path[:] = [path for path in sys.path if path != new]
+        if str(self.old) not in sys.path:
+            sys.path.insert(0, str(self.old))
+        sys.path_hooks[:] = [
+            hook for hook in sys.path_hooks if getattr(hook, "_dota2forge_generation", None) != new
+        ]
+        for hook in self.hooks:
+            if getattr(hook, "_dota2forge_generation", None) == str(self.old):
+                sys.path_hooks.insert(0, hook)
+        for value in tuple(sys.path_importer_cache):
+            if Path(value).absolute().is_relative_to(self.new):
+                del sys.path_importer_cache[value]
+        claim_runtime(self.previous, self.owner_key)
+        self.detached = False
