@@ -1,5 +1,5 @@
 {
-  "release_tag": "v0.1.0a11",
+  "release_tag": "v0.1.0a12",
   "repository": "https://github.com/HBLADEH/Dota2UID",
   "schema_version": 1,
   "wheels": {
@@ -16,8 +16,8 @@
       "sha256": "7fc1910c8604a6cfdd7c181d42cb3c12ec28618871260455b01da86a7876b697"
     },
     "dota2uid": {
-      "filename": "dota2uid-0.1.0a11-py3-none-any.whl",
-      "sha256": "6b3188517fc4684ea28c7427fe4b10b829de9ab8771993b91c9400da32ca4f99"
+      "filename": "dota2uid-0.1.0a12-py3-none-any.whl",
+      "sha256": "49a342b3362c12f7e0a896dc2aa2af7dcf85c2e44a2de7b3ec3ef4a6c7e4f66b"
     }
   }
 }

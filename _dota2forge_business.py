@@ -11,7 +11,7 @@ from Dota2UID.commands import Action, Caller
 from Dota2UID.config import ConfigurationError, load_config_values
 from Dota2UID.runtime import Runtime
 from Dota2UID.replies import ImageReply, Reply
-from Dota2UID.subscriptions import SUBSCRIPTION_COMMANDS
+from Dota2UID.subscriptions import GSCORE_SUBSCRIPTION_COMMANDS, SUBSCRIPTION_PATTERN
 from dota2forge_assets import ASSET_COMMANDS
 from dota2forge_core import DeliveryOutcome, InvalidIdentityError, SubscriptionEvent
 from . import settings
@@ -109,10 +109,11 @@ async def stop_dota2uid() -> None:
 # Registering another blocking HELP handler here would swallow its fallback.
 @queries.on_command(
     tuple(action.value for action in Action if action not in {Action.HELP, Action.MENU})
-    + SUBSCRIPTION_COMMANDS + ASSET_COMMANDS,
+    + GSCORE_SUBSCRIPTION_COMMANDS + ASSET_COMMANDS,
     block=True,
 )
 @queries.on_regex(r"^do(?P<hero>.{1,64})出装$", block=True)
+@queries.on_regex(SUBSCRIPTION_PATTERN, block=True)
 async def command_dota2uid(bot: Bot, ev: Event) -> None:
     if not enabled:
         return
@@ -125,4 +126,8 @@ async def command_dota2uid(bot: Bot, ev: Event) -> None:
     async def send(reply: Reply) -> object:
         return await bot.send(reply.artifact.data if isinstance(reply, ImageReply) else reply.text)
     hero = ev.regex_dict.get("hero")
-    await runtime.dispatch(caller, "do出装" if hero else ev.command, hero if hero else ev.text, send)
+    subscription_args = ev.regex_dict.get("subscription_args")
+    if subscription_args is not None:
+        await runtime.dispatch(caller, "do订阅", subscription_args, send)
+    else:
+        await runtime.dispatch(caller, "do出装" if hero else ev.command, hero if hero else ev.text, send)
