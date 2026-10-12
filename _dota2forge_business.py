@@ -41,9 +41,10 @@ JOB_ID = "Dota2UID-subscriptions"
 job_registered = False
 
 
-async def send_subscription(event: SubscriptionEvent, text: str) -> DeliveryOutcome:
+async def send_subscription(event: SubscriptionEvent, replies: tuple[Reply, ...]) -> DeliveryOutcome:
     from gsuid_core.config import core_config
     from gsuid_core.gss import gss
+    from gsuid_core.models import Message
 
     try:
         caller = runtime.subscription_route(event)
@@ -58,14 +59,23 @@ async def send_subscription(event: SubscriptionEvent, text: str) -> DeliveryOutc
         str(value) for value in core_config.get_config("masters")
     }:
         return DeliveryOutcome.NOT_ATTEMPTED
+    if not replies:
+        return DeliveryOutcome.NOT_ATTEMPTED
+    messages = [
+        Message(type="image", data=reply.artifact.data)
+        if isinstance(reply, ImageReply) else Message(type="text", data=reply.text + "\n")
+        for reply in replies
+    ]
     try:
         receipt = await bot.target_send(
-            text, caller.conversation_kind, caller.conversation_id,
+            messages, caller.conversation_kind, caller.conversation_id,
             caller.platform_key, caller.bot_self_id, wait_recall=True,
         )
     except (OSError, TimeoutError, RuntimeError):
         return DeliveryOutcome.UNCERTAIN
-    return DeliveryOutcome.ACCEPTED if receipt else DeliveryOutcome.UNCERTAIN
+    return (DeliveryOutcome.ACCEPTED if isinstance(receipt, list) and receipt
+            and all(isinstance(value, str) and value for value in receipt)
+            else DeliveryOutcome.UNCERTAIN)
 
 
 async def poll_subscriptions() -> None:
