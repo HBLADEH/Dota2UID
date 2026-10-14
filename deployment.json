@@ -1,10 +1,10 @@
 {
   "hot_reload": {
-    "business_sha256": "9dd07bc342ba59bfec20bfd84942e9c95156ff8bc2a76349e2ff63f0482c4e2f",
+    "business_sha256": "2b43546e0ae1a417b5ef580288cfd1755e29f099ddef9cb89881abf7236d7925",
     "contract": "dota2forge-storage-1-3-report-2",
     "protocol": 1
   },
-  "manifest_sha256": "9cbbd156542f9bac809f1959ecb3c94eae2798e830e7a476856f579e7b704dac",
+  "manifest_sha256": "30e24163cdd215791f8f3e0f01c82c4723981667b9be4f86b9ffb8aa0d91585b",
   "mode": "bundled",
   "schema_version": 1
 }

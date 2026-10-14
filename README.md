@@ -1,14 +1,17 @@
 <p align="center">
+
   <img src="ICON.png" width="128" height="128" alt="Dota2Forge 图标">
 </p>
+
+开发分支候选新增版本强势、STRATZ攻略/样例与原生多轮复盘按需补图；本轮尚未发布，旧发行包不包含这些能力。参见[新指令](https://github.com/HBLADEH/Dota2Forge/blob/372b0bb4f0b48ce0167178f10ea0e6542e62d25e/docs/cookbook/hero-meta.md)与[复盘](https://github.com/HBLADEH/Dota2Forge/blob/372b0bb4f0b48ce0167178f10ea0e6542e62d25e/docs/cookbook/native-review.md)。
 
 <h1 align="center">Dota2UID</h1>
 
 <p align="center">在聊天中查询 Dota 2 玩家、战绩、比赛报告和英雄热门出装。</p>
 
-[安装指南](INSTALL.md) · [版本发布](https://github.com/HBLADEH/Dota2UID/releases) · [Dota2Forge](https://github.com/HBLADEH/Dota2Forge/blob/425fc9f66b489778f35f2690427a5d8b60f40df3/README.md) · [问题反馈](https://github.com/HBLADEH/Dota2Forge/issues)
+[安装指南](INSTALL.md) · [版本发布](https://github.com/HBLADEH/Dota2UID/releases) · [Dota2Forge](https://github.com/HBLADEH/Dota2Forge/blob/372b0bb4f0b48ce0167178f10ea0e6542e62d25e/README.md) · [问题反馈](https://github.com/HBLADEH/Dota2Forge/issues)
 
-> 发行版本：`0.1.0a14` · [目标分发仓库](https://github.com/HBLADEH/Dota2UID)。由主仓同一源码生成。
+> 发行版本：`0.1.0a15` · [目标分发仓库](https://github.com/HBLADEH/Dota2UID)。由主仓同一源码生成。
 
 适用于 GsCore 的 Dota 2 查询扩展，与 AstrBot 插件共用 Dota2Forge 核心和图片渲染器。当前处于 **M0 预发行**阶段。
 
@@ -24,7 +27,7 @@
 
 ## 效果展示
 
-以下截图来自 **GsCore / Dota2UID**，两端共用图片渲染器与“远古锻炉”主题。昵称和账号／比赛 ID 已脱敏，原图分辨率保留；来源见[截图记录](https://github.com/HBLADEH/Dota2Forge/blob/425fc9f66b489778f35f2690427a5d8b60f40df3/docs/assets/screenshots/README.md)。
+以下截图来自 **GsCore / Dota2UID**，两端共用图片渲染器与“远古锻炉”主题。昵称和账号／比赛 ID 已脱敏，原图分辨率保留；来源见[截图记录](https://github.com/HBLADEH/Dota2Forge/blob/372b0bb4f0b48ce0167178f10ea0e6542e62d25e/docs/assets/screenshots/README.md)。
 
 <table>
   <tr>
@@ -139,7 +142,7 @@ do主宰出装
 | `do订阅列表 [游标]` / `do取消订阅 <订阅ID>` | 查看本人当前会话的订阅 / 取消订阅 |
 | `do重试推送 <事件ID>` | 核实是否已送达后人工重试，可能重复 |
 
-首次比赛、段位轮询只建立基线，不补发历史。日报按北京时间统计前一天开始的有限比赛窗口，最多 100 场。失败推送不自动重发；双端部署时需确定推送归属。配置和投递规则见[订阅指南](https://github.com/HBLADEH/Dota2Forge/blob/425fc9f66b489778f35f2690427a5d8b60f40df3/docs/cookbook/subscriptions.md)，真实主动推送仍待验收。
+首次比赛、段位轮询只建立基线，不补发历史。日报按北京时间统计前一天开始的有限比赛窗口，最多 100 场。失败推送不自动重发；双端部署时需确定推送归属。配置和投递规则见[订阅指南](https://github.com/HBLADEH/Dota2Forge/blob/372b0bb4f0b48ce0167178f10ea0e6542e62d25e/docs/cookbook/subscriptions.md)，真实主动推送仍待验收。
 
 ### 管理
 
@@ -165,7 +168,7 @@ do主宰出装
 | 自定义素材路径 | 空 | 留空使用托管素材；非空优先使用自定义目录 |
 | 启用订阅 | `false` | 启用订阅与主动推送 |
 
-首次素材准备完成前可使用占位卡片，已有完整快照会复用。用 `do素材状态` 查看进度；全部参数见[后台配置指南](https://github.com/HBLADEH/Dota2Forge/blob/425fc9f66b489778f35f2690427a5d8b60f40df3/docs/cookbook/gscore-configuration.md)。首次导入旧 TOML 后保留原文件，之后以后台 JSON 配置为准。
+首次素材准备完成前可使用占位卡片，已有完整快照会复用。用 `do素材状态` 查看进度；全部参数见[后台配置指南](https://github.com/HBLADEH/Dota2Forge/blob/372b0bb4f0b48ce0167178f10ea0e6542e62d25e/docs/cookbook/gscore-configuration.md)。首次导入旧 TOML 后保留原文件，之后以后台 JSON 配置为准。
 
 ## 数据说明
 
@@ -185,8 +188,8 @@ do主宰出装
 - **找不到第 N 场**：在同一会话重新查询战绩，或直接传比赛 ID。
 - **英雄或装备缺图**：查看素材状态；检查下载模式、代理或自定义目录。
 
-完整步骤见[安装与更新指南](INSTALL.md)。反馈问题时附插件版本、宿主版本、复现命令及脱敏错误信息。开发贡献见[开发指南](https://github.com/HBLADEH/Dota2Forge/blob/425fc9f66b489778f35f2690427a5d8b60f40df3/docs/cookbook/development.md)。
+完整步骤见[安装与更新指南](INSTALL.md)。反馈问题时附插件版本、宿主版本、复现命令及脱敏错误信息。开发贡献见[开发指南](https://github.com/HBLADEH/Dota2Forge/blob/372b0bb4f0b48ce0167178f10ea0e6542e62d25e/docs/cookbook/development.md)。
 
 ## 致谢与许可
 
-感谢 GsCore、STRATZ 和 OpenDota。代码使用 [MIT 许可证](LICENSE)。Dota 2 及相关角色、美术权利属于 Valve；项目图标为独立生成的同人插画。第三方素材与字体遵循各自许可，见[素材说明](https://github.com/HBLADEH/Dota2Forge/blob/425fc9f66b489778f35f2690427a5d8b60f40df3/docs/cookbook/illustrations.md)。
+感谢 GsCore、STRATZ 和 OpenDota。代码使用 [MIT 许可证](LICENSE)。Dota 2 及相关角色、美术权利属于 Valve；项目图标为独立生成的同人插画。第三方素材与字体遵循各自许可，见[素材说明](https://github.com/HBLADEH/Dota2Forge/blob/372b0bb4f0b48ce0167178f10ea0e6542e62d25e/docs/cookbook/illustrations.md)。

@@ -39,6 +39,7 @@ runtime = Runtime(
 )
 JOB_ID = "Dota2UID-subscriptions"
 job_registered = False
+native_ai = None
 
 
 async def send_subscription(event: SubscriptionEvent, replies: tuple[Reply, ...]) -> DeliveryOutcome:
@@ -83,8 +84,17 @@ async def poll_subscriptions() -> None:
 
 
 async def start_dota2uid() -> None:
-    global job_registered, enabled
+    global job_registered, enabled, native_ai
     await runtime.start()
+    if native_ai is None:
+        # The active runtime wheel is frozen with this generation. Loading its
+        # fixed bridge resource avoids retaining a previous generation's Core
+        # exception/tool classes in an external, cached plugin helper module.
+        from importlib.resources import files
+        native_source = files("Dota2UID").joinpath("host_ai.py.template").read_text("utf-8")
+        native_namespace = {"__name__": __name__, "__file__": __file__}
+        exec(compile(native_source, __file__, "exec"), native_namespace)
+        native_ai = native_namespace["register_native_ai"](runtime, caller_from_event)
     enabled = runtime.state.value in {"ready", "awaiting_config"}
     if runtime.state.value == "ready" and runtime.subscriptions_enabled:
         from gsuid_core.aps import scheduler
@@ -101,13 +111,16 @@ async def start_dota2uid() -> None:
 
 
 async def stop_dota2uid() -> None:
-    global job_registered, enabled
+    global job_registered, enabled, native_ai
     enabled = False
     if job_registered:
         from gsuid_core.aps import scheduler
         if scheduler.get_job(JOB_ID) is not None:
             scheduler.remove_job(JOB_ID)
         job_registered = False
+    if native_ai is not None:
+        await native_ai.close()
+        native_ai = None
     await runtime.close()
     logger.info(
         f"Dota2UID stopped state={runtime.state.value} client_closed={runtime.client_closed} "
@@ -123,6 +136,7 @@ async def stop_dota2uid() -> None:
     block=True,
 )
 @queries.on_regex(r"^do(?P<hero>.{1,64})出装$", block=True)
+@queries.on_regex(r"^do(?P<guide_hero>.{1,64})攻略(?:\s+(?P<guide_args>.{1,80}))?$", block=True)
 @queries.on_regex(SUBSCRIPTION_PATTERN, block=True)
 async def command_dota2uid(bot: Bot, ev: Event) -> None:
     if not enabled:
@@ -135,9 +149,24 @@ async def command_dota2uid(bot: Bot, ev: Event) -> None:
     )
     async def send(reply: Reply) -> object:
         return await bot.send(reply.artifact.data if isinstance(reply, ImageReply) else reply.text)
+    if ev.command == "do复盘" and native_ai is not None:
+        if await native_ai.review(bot, ev, ev.text):
+            return
+    guide_hero = ev.regex_dict.get("guide_hero")
+    if guide_hero:
+        await runtime.dispatch(caller, "do攻略", guide_hero + " " + (ev.regex_dict.get("guide_args") or ""), send)
+        return
     hero = ev.regex_dict.get("hero")
     subscription_args = ev.regex_dict.get("subscription_args")
     if subscription_args is not None:
         await runtime.dispatch(caller, "do订阅", subscription_args, send)
     else:
         await runtime.dispatch(caller, "do出装" if hero else ev.command, hero if hero else ev.text, send)
+
+
+def caller_from_event(ev):
+    return Caller(ev.bot_id, ev.bot_self_id, ev.user_id, ev.WS_BOT_ID,
+                  any(str(value) != str(ev.bot_self_id) for value in ev.at_list)
+                  or (ev.at is not None and str(ev.at) != str(ev.bot_self_id)),
+                  ev.user_type, ev.group_id,
+                  type(ev.user_pm) is int and ev.user_pm == 0)
