@@ -9,11 +9,11 @@
     },
     "dota2forge-core": {
       "filename": "dota2forge_core-0.1.0a8-py3-none-any.whl",
-      "sha256": "a7929b896f01a60c3a12bf0e901d0eb9441299610b02b48ee7f9e15907a37fbb"
+      "sha256": "62fd70d44a5c408f83392c784ad1a096cb28cd989aa88dfce131a6022186a073"
     },
     "dota2forge-renderer": {
       "filename": "dota2forge_renderer-0.1.0a8-py3-none-any.whl",
-      "sha256": "a713b5a3848e5b8cfe450956805888585ac84a7ae3babdf38c69d4f6651f1d18"
+      "sha256": "8104a581e2d74f24882ec4156f49499ac27d94d0ecf2b95a7ba7104453eb005e"
     },
     "dota2uid": {
       "filename": "dota2uid-0.1.0a15-py3-none-any.whl",
