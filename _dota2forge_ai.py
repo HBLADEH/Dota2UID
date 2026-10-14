@@ -123,8 +123,10 @@ def register_native_ai(runtime, caller_from_event):
         if generation is None:
             return None
         history = getattr(generation, "history", ())
+        # H14 does not populate query; use the same trusted event as normal chat.
+        query = ctx.query or ctx.ev.raw_text
         return runtime.review_hint(caller_from_event(ctx.ev), ctx.session_id, generation,
-                                   ctx.query, len(history))
+                                   query, len(history))
 
     @on_agent_hook(AgentHookPoint.AFTER_CONTEXT, priority=420)
     async def review_context_hint(ctx):
