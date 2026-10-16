@@ -7,6 +7,33 @@ from dota2forge_core import Dota2ForgeError
 from dota2forge_core.feature_tools import TOOL_NAMES
 
 
+def register_review_skill():
+    """Own one SDK skill registration; older SDKs still receive tool guidance."""
+    try:
+        from gsuid_core.ai_core.register import ai_skill
+        from gsuid_core.ai_core.skills.operations import _rebuild_skills
+        from gsuid_core.ai_core.skills.resource import plugin_skill_dirs
+    except ImportError:
+        return lambda: None
+    from dota2forge_core.infrastructure.review_guidance import skill_directory
+    root = skill_directory().resolve()
+    if not isinstance(plugin_skill_dirs, list) or not callable(_rebuild_skills):
+        return lambda: None
+    ai_skill(root, plugin="Dota2UID")
+    owned = next((entry for entry in plugin_skill_dirs
+                  if entry == (root, "Dota2UID")), None)
+
+    def release():
+        # Current SDK has no public unregister. Remove only this exact generation's tuple.
+        for index, entry in enumerate(plugin_skill_dirs):
+            if entry is owned:
+                plugin_skill_dirs.pop(index)
+                _rebuild_skills()
+                break
+
+    return release
+
+
 def register_native_ai(runtime, caller_from_event):
     try:
         from gsuid_core.ai_core.configs.ai_config import ai_config
@@ -139,6 +166,8 @@ def register_native_ai(runtime, caller_from_event):
         if hint(ctx):
             ctx.ensure_tools("get_dota2_review_context", "render_dota2_review_data")
 
+    release_skill = register_review_skill()
+
     class NativeAI:
         async def review(self, bot, ev, text):
             from gsuid_core.ai_core.ai_router import get_ai_session
@@ -172,6 +201,7 @@ def register_native_ai(runtime, caller_from_event):
             for name in TOOL_NAMES:
                 unregister_tool(name)
             drop_hooks_for_module(__name__)
+            release_skill()
             tasks = tuple(task for task in owned if task is not asyncio.current_task())
             for task in tasks:
                 task.cancel()
