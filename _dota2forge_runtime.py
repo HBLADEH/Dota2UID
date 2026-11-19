@@ -48,6 +48,7 @@ MAX_EXPANDED_BYTES = 64 * 1024 * 1024
 MAX_RUNTIME_BYTES = 128 * 1024 * 1024
 MAX_FILES = 10_000
 MINIMUM_PYTHON = (3, 12)
+HOST_REQUIREMENTS = ("httpx>=0.28.1,<1", "pillow>=11.3,<13.1")
 DOWNLOAD_TIMEOUT = 10.0
 DOWNLOAD_DEADLINE = 60.0
 PROBE_TIMEOUT = 30.0
@@ -397,7 +398,7 @@ def _requirement(value: str, extras: tuple[str, ...] = ("",)) -> tuple[str, str]
 
 def _dependencies(project: dict[str, str], requirements: list[str]) -> None:
     """Check actual host dependencies and their applicable transitive requirements."""
-    pending = ["httpx>=0.28.1,<1", "pillow>=11.3,<13", *requirements]
+    pending = [*HOST_REQUIREMENTS, *requirements]
     checked: set[str] = set()
     while pending:
         requirement = _requirement(pending.pop(), ("", "stratz"))

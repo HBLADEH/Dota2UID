@@ -7,9 +7,9 @@
 
 <p align="center">查询 Dota 2 战绩、强势英雄与攻略，使用原生 AI 连续复盘。</p>
 
-[安装指南](INSTALL.md) · [版本发布](https://github.com/HBLADEH/Dota2UID/releases) · [Dota2Forge](https://github.com/HBLADEH/Dota2Forge/blob/0e3ecc0d1eda948b548feae03c7c9fa62944d52d/README.md) · [问题反馈](https://github.com/HBLADEH/Dota2Forge/issues)
+[安装指南](INSTALL.md) · [版本发布](https://github.com/HBLADEH/Dota2UID/releases) · [Dota2Forge](https://github.com/HBLADEH/Dota2Forge/blob/986e68090daa7cd17096ad76afa5feff573526ee/README.md) · [问题反馈](https://github.com/HBLADEH/Dota2Forge/issues)
 
-> 发行版本：`0.1.0a16` · [目标分发仓库](https://github.com/HBLADEH/Dota2UID)。由主仓同一源码生成。
+> 发行版本：`0.1.0a17` · [目标分发仓库](https://github.com/HBLADEH/Dota2UID)。由主仓同一源码生成。
 
 适用于 GsCore 的 Dota 2 查询扩展，与 AstrBot 插件共用 Dota2Forge 核心和图片渲染器。当前处于 **M0 预发行**阶段。
 
@@ -27,7 +27,7 @@
 
 ## 效果展示
 
-以下截图来自 **GsCore / Dota2UID**，两端共用图片渲染器与“远古锻炉”主题。昵称和账号／比赛 ID 已脱敏，原图分辨率保留；来源见[截图记录](https://github.com/HBLADEH/Dota2Forge/blob/0e3ecc0d1eda948b548feae03c7c9fa62944d52d/docs/assets/screenshots/README.md)。
+以下截图来自 **GsCore / Dota2UID**，两端共用图片渲染器与“远古锻炉”主题。昵称和账号／比赛 ID 已脱敏，原图分辨率保留；来源见[截图记录](https://github.com/HBLADEH/Dota2Forge/blob/986e68090daa7cd17096ad76afa5feff573526ee/docs/assets/screenshots/README.md)。
 
 <table>
   <tr>
@@ -141,7 +141,7 @@ do复盘 <比赛ID> 主宰
 
 先启用 GsCore 已有的 AI 模型，并允许当前人格使用 Dota2UID 复盘工具。发送 `do复盘 <比赛ID> [英雄]` 后，在同一会话继续问“这局主要有什么问题？”、“出装顺序怎么改？”、“给我看看经济曲线”；无需重复比赛 ID。若配置仅 @ 回复，追问也要 @ 机器人。
 
-支持的 GsCore 会注册原生 `dota2-review` Skill；复盘工具同时携带相同专题指南，旧宿主也可消费。没有可用 AI 时返回来源事实，附加“报告”可查看比赛报告。会话活动超时 30 分钟、最长 2 小时，清空历史或重载后需重新开始。详见[复盘用法](https://github.com/HBLADEH/Dota2Forge/blob/0e3ecc0d1eda948b548feae03c7c9fa62944d52d/docs/cookbook/native-review.md)与[攻略指令](https://github.com/HBLADEH/Dota2Forge/blob/0e3ecc0d1eda948b548feae03c7c9fa62944d52d/docs/cookbook/hero-meta.md)。
+支持的 GsCore 会注册原生 `dota2-review` Skill；复盘工具同时携带相同专题指南，旧宿主也可消费。没有可用 AI 时返回来源事实，附加“报告”可查看比赛报告。会话活动超时 30 分钟、最长 2 小时，清空历史或重载后需重新开始。详见[复盘用法](https://github.com/HBLADEH/Dota2Forge/blob/986e68090daa7cd17096ad76afa5feff573526ee/docs/cookbook/native-review.md)与[攻略指令](https://github.com/HBLADEH/Dota2Forge/blob/986e68090daa7cd17096ad76afa5feff573526ee/docs/cookbook/hero-meta.md)。
 
 ### 订阅
 
@@ -155,7 +155,7 @@ do复盘 <比赛ID> 主宰
 | `do订阅列表 [游标]` / `do取消订阅 <订阅ID>` | 查看本人当前会话的订阅 / 取消订阅 |
 | `do重试推送 <事件ID>` | 核实是否已送达后人工重试，可能重复 |
 
-首次比赛、段位轮询只建立基线，不补发历史。日报按北京时间统计前一天开始的有限比赛窗口，最多 100 场。失败推送不自动重发；双端部署时需确定推送归属。配置和投递规则见[订阅指南](https://github.com/HBLADEH/Dota2Forge/blob/0e3ecc0d1eda948b548feae03c7c9fa62944d52d/docs/cookbook/subscriptions.md)，真实主动推送仍待验收。
+首次比赛、段位轮询只建立基线，不补发历史。日报按北京时间统计前一天开始的有限比赛窗口，最多 100 场。失败推送不自动重发；双端部署时需确定推送归属。配置和投递规则见[订阅指南](https://github.com/HBLADEH/Dota2Forge/blob/986e68090daa7cd17096ad76afa5feff573526ee/docs/cookbook/subscriptions.md)，真实主动推送仍待验收。
 
 ### 管理
 
@@ -181,7 +181,7 @@ do复盘 <比赛ID> 主宰
 | 自定义素材路径 | 空 | 留空使用托管素材；非空优先使用自定义目录 |
 | 启用订阅 | `false` | 启用订阅与主动推送 |
 
-首次素材准备完成前可使用占位卡片，已有完整快照会复用。用 `do素材状态` 查看进度；全部参数见[后台配置指南](https://github.com/HBLADEH/Dota2Forge/blob/0e3ecc0d1eda948b548feae03c7c9fa62944d52d/docs/cookbook/gscore-configuration.md)。首次导入旧 TOML 后保留原文件，之后以后台 JSON 配置为准。
+首次素材准备完成前可使用占位卡片，已有完整快照会复用。用 `do素材状态` 查看进度；全部参数见[后台配置指南](https://github.com/HBLADEH/Dota2Forge/blob/986e68090daa7cd17096ad76afa5feff573526ee/docs/cookbook/gscore-configuration.md)。首次导入旧 TOML 后保留原文件，之后以后台 JSON 配置为准。
 
 ## 数据说明
 
@@ -201,8 +201,8 @@ do复盘 <比赛ID> 主宰
 - **找不到第 N 场**：在同一会话重新查询战绩，或直接传比赛 ID。
 - **英雄或装备缺图**：查看素材状态；检查下载模式、代理或自定义目录。
 
-完整步骤见[安装与更新指南](INSTALL.md)。反馈问题时附插件版本、宿主版本、复现命令及脱敏错误信息。开发贡献见[开发指南](https://github.com/HBLADEH/Dota2Forge/blob/0e3ecc0d1eda948b548feae03c7c9fa62944d52d/docs/cookbook/development.md)。
+完整步骤见[安装与更新指南](INSTALL.md)。反馈问题时附插件版本、宿主版本、复现命令及脱敏错误信息。开发贡献见[开发指南](https://github.com/HBLADEH/Dota2Forge/blob/986e68090daa7cd17096ad76afa5feff573526ee/docs/cookbook/development.md)。
 
 ## 致谢与许可
 
-感谢 GsCore、STRATZ 和 OpenDota。复盘指南参考 [dota2-newbie-assistant](https://github.com/timzhangherenow/dota2-newbie-assistant)，随 Core 保留其 MIT 归属与许可。代码使用 [MIT 许可证](LICENSE)。Dota 2 及相关角色、美术权利属于 Valve；项目图标为独立生成的同人插画。第三方素材与字体遵循各自许可，见[素材说明](https://github.com/HBLADEH/Dota2Forge/blob/0e3ecc0d1eda948b548feae03c7c9fa62944d52d/docs/cookbook/illustrations.md)。
+感谢 GsCore、STRATZ 和 OpenDota。复盘指南参考 [dota2-newbie-assistant](https://github.com/timzhangherenow/dota2-newbie-assistant)，随 Core 保留其 MIT 归属与许可。代码使用 [MIT 许可证](LICENSE)。Dota 2 及相关角色、美术权利属于 Valve；项目图标为独立生成的同人插画。第三方素材与字体遵循各自许可，见[素材说明](https://github.com/HBLADEH/Dota2Forge/blob/986e68090daa7cd17096ad76afa5feff573526ee/docs/cookbook/illustrations.md)。
